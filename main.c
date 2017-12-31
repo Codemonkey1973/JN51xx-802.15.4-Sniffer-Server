@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 				iOffset += LENGTH_CHANNEL;
 
 				/* Copy LQI from sniffed message */
-				memcpy(&au8MessageBuffer[iOffset], &sMessage.au8Data[sMessage.u8Length - 1], LENGTH_LQI);
+				memcpy(&au8MessageBuffer[iOffset], &sMessage.au8Data[sMessage.u8Length - 2], LENGTH_LQI);
 				iOffset += LENGTH_LQI;
 
 				/* Copy length from sniffed message */

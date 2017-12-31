@@ -32,3 +32,6 @@ This should start the sniffer server, connect to a JN51xx device running sniffer
 To get a list of the available options, type:
 
 JN51xx-802.15.4-Sniffer-Server.exe -h  
+
+
+Setting a wireshark capture filter such as "udp port 49999" will cut out all other traffic.

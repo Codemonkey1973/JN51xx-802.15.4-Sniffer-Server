@@ -1,2 +1,5 @@
+December 31st 2017
+	Fixed LQI field showing incorrect value.
+
 December 30th 2017
 	First version released.

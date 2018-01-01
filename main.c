@@ -118,6 +118,7 @@ typedef struct
 	volatile boolean	bExit;
 	boolean				bVerbose;
 	boolean				bSilent;
+	boolean				bDebug;
 	teState				eState;
 	char				*pstrSerialPort;
 	int					iBaudRate;
@@ -194,6 +195,7 @@ int main(int argc, char *argv[])
 	sInstance.bExit = FALSE;
 	sInstance.bVerbose = FALSE;
 	sInstance.bSilent = FALSE;
+	sInstance.bDebug = FALSE;
 	sInstance.eState = E_STATE_SET_CHANNEL;
 	sInstance.pstrSerialPort = NULL;
 	sInstance.iBaudRate = 1000000;
@@ -525,6 +527,7 @@ static void vParseCommandLineOptions(tsInstance *psInstance, int argc, char *arg
 
         { "verbose",       	no_argument,  		0,  'v' },
         { "quiet",       	no_argument,  		0,  'q' },
+        { "debug",       	no_argument,  		0,  'd' },
 
         { "help",       	no_argument,  		0,  'h' },
         { "help",       	no_argument,  		0,  '?' },
@@ -536,7 +539,7 @@ static void vParseCommandLineOptions(tsInstance *psInstance, int argc, char *arg
 	while(1)
 	{
 
-		c = getopt_long(argc, argv, "s:b:c:d:p:n:vq?", lopts, NULL);
+		c = getopt_long(argc, argv, "s:b:c:i:p:n:vqd?", lopts, NULL);
 
 		if (c == -1)
 			break;
@@ -579,6 +582,12 @@ static void vParseCommandLineOptions(tsInstance *psInstance, int argc, char *arg
 			psInstance->bSilent = TRUE;
 			break;
 
+		case 'd':
+			printf("Debug mode enabled\n");
+			psInstance->bVerbose = TRUE;
+			psInstance->bDebug = TRUE;
+			break;
+
         case '?':
 		case 'h':
 		default:
@@ -594,6 +603,7 @@ static void vParseCommandLineOptions(tsInstance *psInstance, int argc, char *arg
 				 "                               (default is the name of the serial port)\n\n"
 				 "  -v --verbose                Enable verbose mode\n\n"
 				 "  -q --quiet                  Enable quiet mode (no updates on console)\n\n"
+				 "  -d --debug                  Enable debugging mode (extra info messages)\n\n"
 				 "  -? --help                   Display help\n");
 			exit(EXIT_FAILURE);
 			break;
@@ -666,18 +676,19 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
     eStatus = eReadFromUart(psInstance, 100, psMessage->iBytesExpected, &psMessage->au8Buffer[psMessage->iBytesReceived], &iLen);
     if(eStatus == E_STATUS_OK)
     {
-//    	printf("Got %d bytes\n", iLen);
+    	if(psInstance->bDebug) printf("Expect %d Got %d, State %d\n", psMessage->iBytesExpected, iLen, psMessage->eState);
 
 		psMessage->iBytesReceived += iLen;
 
-#if 0
-	    printf("Read");
-	    for(n = 0; n < psMessage->iBytesReceived; n++)
-	    {
-	        printf(" %02x", psMessage->au8Buffer[n]);
-	    }
-	    printf(" Bytes=%d State=%d\n", psMessage->iBytesReceived, psMessage->eState);
-#endif
+		if(psInstance->bDebug)
+		{
+		    printf("Read");
+		    for(n = 0; n < psMessage->iBytesReceived; n++)
+		    {
+		        printf(" %02x", psMessage->au8Buffer[n]);
+		    }
+		    printf(" Bytes=%d State=%d\n", psMessage->iBytesReceived, psMessage->eState);
+		}
 
 	    eStatus = E_STATUS_AGAIN;
 
@@ -685,12 +696,17 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
 		{
 
 		case E_MESSAGE_STATE_INIT:
+			printf("Shouldn't be here\n");
 			break;
 
 		case E_MESSAGE_STATE_WAIT_NULL:
 			if(psMessage->au8Buffer[0] == 0x00)
 			{
 				psMessage->eState++;
+			}
+			else
+			{
+				psMessage->eState = E_MESSAGE_STATE_INIT;
 			}
 			break;
 
@@ -716,29 +732,30 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
 			/* If we now have the whole message */
 			if(psMessage->iBytesExpected == 0)
 			{
-
-//			    printf("Got whole message %02x\n", psMessage->au8Buffer[psMessage->au8Buffer[2]]);
+				if(psInstance->bDebug) printf("Got message\n");
 
 				/* If the last byte is EOT */
 				if(psMessage->au8Buffer[psMessage->au8Buffer[2] + 2] == 0x04)
 				{
 
-//				    printf("EOT\n");
+					if(psInstance->bDebug) printf("Got EOT\n");
 
 					/* If the checksum is good, return the message */
 					if(u8CalculateChecksum(psMessage->au8Buffer) == psMessage->au8Buffer[psMessage->au8Buffer[2] + 1])
 					{
 
-//					    printf("CHKOK\n");
+						if(psInstance->bDebug) printf("ChkSum OK\n");
 
 						psMessage->u8Length = psMessage->au8Buffer[2] - 3;
 						psMessage->u8MessageId = psMessage->au8Buffer[3];
 						memcpy(psMessage->au8Data, &psMessage->au8Buffer[4], psMessage->u8Length);
 						eStatus = E_STATUS_OK;
 					}
+					else
+					{
+						if(psInstance->bDebug) printf("ChkSum Bad\n");
+					}
 				}
-
-//			    printf("\n");
 
 			    psMessage->eState = E_MESSAGE_STATE_INIT;
 			}
@@ -828,7 +845,6 @@ static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, 
     	eStatus = E_STATUS_ERROR_TIMEOUT;
     }
 
-//	printf("Got %d bytes\n", dwBytesRead);
 	*piBytesRead = (int)dwBytesRead;
 
     return eStatus;
@@ -857,14 +873,15 @@ static teStatus eWriteToUart(tsInstance *psInstance, int iLength, uint8_t *pu8Da
 		return E_STATUS_ERROR_WRITING;
 	}
 
-#if 0
-    printf("Write");
-    for(n = 0; n < iLength; n++)
-    {
-        printf(" %02x", pu8Data[n]);
-    }
-    printf("\n");
-#endif
+	if(psInstance->bDebug)
+	{
+		printf("Write");
+		for(n = 0; n < iLength; n++)
+		{
+			printf(" %02x", pu8Data[n]);
+		}
+		printf("\n");
+	}
 
 	return E_STATUS_OK;
 }
@@ -901,7 +918,7 @@ static uint8_t u8CalculateChecksum(uint8_t *pu8Message)
 
 	u8Checksum = 256 - u8Checksum;
 
-//	printf("MsgId=%d Len=%d PayloadLen=%d CheckSum=%02x\n", u8MessageId, u8Length, iPayloadLength, u8Checksum);
+	if(sInstance.bDebug) printf("MsgId=%d Len=%d PayloadLen=%d CheckSum=%02x\n", u8MessageId, u8Length, iPayloadLength, u8Checksum);
 
 	return u8Checksum;
 

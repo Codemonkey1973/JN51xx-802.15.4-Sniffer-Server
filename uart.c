@@ -365,7 +365,7 @@ boolean UART_bRead(HANDLE hUartHandle, uint8_t *pu8Data)
  *              FALSE if byte wasn't read
  *
  ****************************************************************************/
-boolean UART_bReadWithTimeout(HANDLE hUartHandle, uint8_t *pu8Data, DWORD dwTimeout)
+boolean UART_bReadWithTimeout(HANDLE hUartHandle, uint8_t *pu8Data, int iNumBytesToRead, DWORD dwTimeout, DWORD *pdwBytesRead)
 {
     DWORD dwBytesTransferred = 0;
     COMMTIMEOUTS timeouts;
@@ -382,8 +382,9 @@ boolean UART_bReadWithTimeout(HANDLE hUartHandle, uint8_t *pu8Data, DWORD dwTime
         return(FALSE);
     }
 
-    if(ReadFile(hUartHandle, pu8Data, 1, &dwBytesTransferred, 0)){
-        if(dwBytesTransferred == 1){
+    if(ReadFile(hUartHandle, pu8Data, iNumBytesToRead, &dwBytesTransferred, 0)){
+    	*pdwBytesRead = dwBytesTransferred;
+        if(dwBytesTransferred == iNumBytesToRead){
             return(TRUE);
         }
     }

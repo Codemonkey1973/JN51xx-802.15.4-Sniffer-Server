@@ -137,7 +137,7 @@ static void vParseCommandLineOptions(tsInstance *psInstance, int argc, char *arg
 static BOOL WINAPI bCtrlHandler(DWORD dwCtrlType);
 static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage);
 static teStatus eWriteMessage(tsInstance *psInstance, tsMessage *psMessage);
-static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, int iBufferLen, uint8_t *pu8Buffer, int *piBytesRead);
+static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, int iBytesExpected, uint8_t *pu8Buffer, int *piBytesRead);
 static teStatus eWriteToUart(tsInstance *psInstance, int iLength, uint8_t *pu8Data);
 static uint8_t u8CalculateChecksum(uint8_t *pu8Message);
 
@@ -663,10 +663,12 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
 		psMessage->eState++;
 	}
 
-    eStatus = eReadFromUart(psInstance, 1000, psMessage->iBytesExpected, &psMessage->au8Buffer[psMessage->iBytesReceived], &iLen);
+    eStatus = eReadFromUart(psInstance, 100, psMessage->iBytesExpected, &psMessage->au8Buffer[psMessage->iBytesReceived], &iLen);
     if(eStatus == E_STATUS_OK)
     {
-		psMessage->iBytesReceived++;
+//    	printf("Got %d bytes\n", iLen);
+
+		psMessage->iBytesReceived += iLen;
 
 #if 0
 	    printf("Read");
@@ -683,9 +685,6 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
 		{
 
 		case E_MESSAGE_STATE_INIT:
-			psMessage->iBytesReceived = 0;
-			psMessage->iBytesExpected = 1;
-			psMessage->eState++;
 			break;
 
 		case E_MESSAGE_STATE_WAIT_NULL:
@@ -712,7 +711,7 @@ static teStatus eReadMessage(tsInstance *psInstance, tsMessage *psMessage)
 			break;
 
 		case E_MESSAGE_STATE_WAIT_MESSAGE:
-			psMessage->iBytesExpected--;
+			psMessage->iBytesExpected -= iLen;
 
 			/* If we now have the whole message */
 			if(psMessage->iBytesExpected == 0)
@@ -787,6 +786,8 @@ static teStatus eWriteMessage(tsInstance *psInstance, tsMessage *psMessage)
 	au8Buffer[au8Buffer[2] + 1] = u8CalculateChecksum(au8Buffer);
 	au8Buffer[au8Buffer[2] + 2] = 0x04;
 
+	UART_vFlush(psInstance->hUartHandle);
+
 	/* Write message */
 	if(eWriteToUart(psInstance, au8Buffer[2] + 3, au8Buffer) != E_STATUS_OK)
 	{
@@ -809,8 +810,11 @@ static teStatus eWriteMessage(tsInstance *psInstance, tsMessage *psMessage)
  * teStatus
  *
  ****************************************************************************/
-static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, int iBufferLen, uint8_t *pu8Buffer, int *piBytesRead)
+static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, int iBytesExpected, uint8_t *pu8Buffer, int *piBytesRead)
 {
+
+	DWORD dwBytesRead = 0;
+	teStatus eStatus = E_STATUS_OK;
 
     if(pu8Buffer == NULL)
     {
@@ -819,17 +823,15 @@ static teStatus eReadFromUart(tsInstance *psInstance, int iTimeoutMilliseconds, 
 
     *piBytesRead = 0;
 
-    if(UART_bReadWithTimeout(psInstance->hUartHandle, &pu8Buffer[*piBytesRead], iTimeoutMilliseconds) == TRUE)
+    if(UART_bReadWithTimeout(psInstance->hUartHandle, &pu8Buffer[*piBytesRead], iBytesExpected, iTimeoutMilliseconds, &dwBytesRead) != TRUE)
     {
-    	(*piBytesRead)++;
+    	eStatus = E_STATUS_ERROR_TIMEOUT;
     }
 
-    if(*piBytesRead == 0)
-    {
-        return E_STATUS_ERROR_TIMEOUT;
-    }
+//	printf("Got %d bytes\n", dwBytesRead);
+	*piBytesRead = (int)dwBytesRead;
 
-    return E_STATUS_OK;
+    return eStatus;
 }
 
 

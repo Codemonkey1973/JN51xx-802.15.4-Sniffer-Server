@@ -50,7 +50,7 @@ boolean UART_bEnumeratePorts(char *deviceName, DWORD maxLen, DWORD index);
 boolean UART_bOpen(HANDLE *phUartHandle, const char *acPortName, int iBaudRate);
 boolean UART_bClose(HANDLE hUartHandle);
 boolean UART_bRead(HANDLE hUartHandle, uint8_t *pu8Data);
-boolean UART_bReadWithTimeout(HANDLE hUartHandle, uint8_t *pu8Data, DWORD dwTimeout);
+boolean UART_bReadWithTimeout(HANDLE hUartHandle, uint8_t *pu8Data, int iNumBytesToRead, DWORD dwTimeout, DWORD *pdwBytesRead);
 boolean UART_bWrite(HANDLE hUartHandle, uint8_t u8Data);
 boolean UART_bWriteBytes(HANDLE hUartHandle, uint8_t *pu8Data, int iLength);
 void UART_vFlush(HANDLE hUartHandle);
